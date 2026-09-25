@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Alfarrábio</string>
+    <string name="title_activity_main">Alfarrábio</string>
+    <string name="package_name">com.livraria.alfarrabio</string>
+    <string name="custom_url_scheme">com.livraria.alfarrabio</string>
+</resources>
