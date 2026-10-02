@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./services/supabaseClient";
+import {
+  criarLivro,
+  lerTodosOsLivros,
+  atualizarLivro,
+  deletarLivro,
+  inscreverAMudancas,
+  desinscreverDeMudancas
+} from "./services/crudService";
 
 const CSS = [
   ":root { color-scheme: dark; }",
@@ -155,7 +163,80 @@ const CSS = [
 
   "@media (max-width: 900px) { .nav-links { display: none; } .hero-grid { grid-template-columns: 1fr; } .book-grid { grid-template-columns: repeat(2, 1fr); } .newsletter { grid-template-columns: 1fr; } }",
 
-  "@media (max-width: 600px) { .container { width: calc(100% - 28px); } .book-grid { grid-template-columns: repeat(2, 1fr); gap: 15px; } .section-head { display: block; } .section-description { margin-top: 20px; } .newsletter-form { display: block; } .newsletter-form button { width: 100%; margin-top: 10px; padding: 14px; } .shelf { height: 230px; } .add-button { opacity: 1; } }"
+  "@media (max-width: 600px) { .container { width: calc(100% - 28px); } .book-grid { grid-template-columns: repeat(2, 1fr); gap: 15px; } .section-head { display: block; } .section-description { margin-top: 20px; } .newsletter-form { display: block; } .newsletter-form button { width: 100%; margin-top: 10px; padding: 14px; } .shelf { height: 230px; } .add-button { opacity: 1; } }",
+
+  /* ========== CRUD MANAGEMENT STYLES ========== */
+  ".admin-button { position: fixed; bottom: 30px; right: 30px; width: 60px; height: 60px; border-radius: 50%; background: #B8863B; color: #1B120D; font-size: 24px; border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,.3); z-index: 99; transition: transform .2s, box-shadow .2s; }",
+
+  ".admin-button:hover { transform: scale(1.1); box-shadow: 0 6px 16px rgba(0,0,0,.4); }",
+
+  ".admin-modal { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 20px; }",
+
+  ".admin-modal.hidden { display: none; }",
+
+  ".admin-content { background: #241710; border-radius: 8px; max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 30px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }",
+
+  ".admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }",
+
+  ".admin-header h2 { margin: 0; font-family: Georgia, serif; font-size: 28px; color: #F5EDE1; }",
+
+  ".admin-close { background: transparent; border: none; color: #F5EDE1; font-size: 28px; cursor: pointer; }",
+
+  ".form-group { margin-bottom: 20px; }",
+
+  ".form-label { display: block; color: #D8C8B8; font-size: 13px; font-weight: bold; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }",
+
+  ".form-input, .form-textarea { width: 100%; padding: 12px; border: 1px solid #65462F; border-radius: 4px; background: #1B120D; color: #F5EDE1; font-family: inherit; outline: none; transition: border-color .2s; }",
+
+  ".form-input:focus, .form-textarea:focus { border-color: #B8863B; }",
+
+  ".form-textarea { resize: vertical; min-height: 80px; }",
+
+  ".form-actions { display: flex; gap: 10px; margin-top: 25px; }",
+
+  ".btn-save { flex: 1; padding: 12px; background: #B8863B; color: #1B120D; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: background .2s; }",
+
+  ".btn-save:hover { background: #d4a75d; }",
+
+  ".btn-cancel { flex: 1; padding: 12px; background: #3A281D; color: #F5EDE1; border: 1px solid #65462F; border-radius: 4px; cursor: pointer; font-weight: bold; transition: all .2s; }",
+
+  ".btn-cancel:hover { background: #5C3A28; }",
+
+  ".admin-section { margin-top: 40px; padding-top: 30px; border-top: 1px solid #3A281D; }",
+
+  ".admin-section h3 { color: #B8863B; font-size: 16px; margin: 0 0 20px; text-transform: uppercase; letter-spacing: 1px; }",
+
+  ".book-item { background: #1B120D; padding: 15px; border: 1px solid #3A281D; border-radius: 4px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }",
+
+  ".book-item-info { flex: 1; }",
+
+  ".book-item-title { color: #F5EDE1; font-weight: bold; margin: 0; }",
+
+  ".book-item-details { color: #8F7A6C; font-size: 12px; margin: 5px 0 0; }",
+
+  ".book-item-actions { display: flex; gap: 10px; }",
+
+  ".btn-small { padding: 6px 12px; border: none; border-radius: 3px; cursor: pointer; font-size: 12px; font-weight: bold; transition: all .2s; }",
+
+  ".btn-edit { background: #B8863B; color: #1B120D; }",
+
+  ".btn-edit:hover { background: #d4a75d; }",
+
+  ".btn-delete { background: #8B3A2E; color: #F5EDE1; }",
+
+  ".btn-delete:hover { background: #a84635; }",
+
+  ".success-banner { background: #5a8c5a; color: #F5EDE1; padding: 12px 15px; border-radius: 4px; margin-bottom: 15px; font-size: 13px; }",
+
+  ".error-banner { background: #8B3A2E; color: #F2A69A; padding: 12px 15px; border-radius: 4px; margin-bottom: 15px; font-size: 13px; }",
+
+  ".realtime-indicator { display: inline-flex; align-items: center; gap: 6px; color: #B8863B; font-size: 12px; font-family: monospace; }",
+
+  ".realtime-dot { width: 8px; height: 8px; border-radius: 50%; background: #4CAF50; animation: pulse 1.5s infinite; }",
+
+  "@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }",
+
+  "@media (max-width: 600px) { .admin-content { max-width: 90vw; padding: 20px; } .book-item { flex-direction: column; align-items: flex-start; } .book-item-actions { width: 100%; margin-top: 10px; } .admin-button { width: 50px; height: 50px; font-size: 20px; bottom: 20px; right: 20px; } }"
 ].join("\n");
 
 function formatPrice(value) {
@@ -164,18 +245,15 @@ function formatPrice(value) {
 }
 
 function getCategory(produto) {
-  if (produto.categoria) {
-    return String(produto.categoria);
-  }
-
   if (produto.categoria_id) {
-    return "Categoria " + produto.categoria_id;
+    return "Cat. " + produto.categoria_id;
   }
 
   return "Livro";
 }
 
 function App() {
+  // ========== STATE GERENCIAMENTO PRINCIPAL ==========
   const [produtos, setProdutos] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
@@ -186,30 +264,196 @@ function App() {
   const [email, setEmail] = useState("");
   const [newsletterMessage, setNewsletterMessage] = useState("");
 
+  // ========== STATE GERENCIAMENTO CRUD ==========
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [modo, setModo] = useState("listar"); // listar, criar, editar
+  const [livroEditando, setLivroEditando] = useState(null);
+  const [formulario, setFormulario] = useState({
+    titulo: "",
+    autor: "",
+    preco: "",
+    categoria_id: "1",
+    estoque: "",
+    descricao: "",
+    imagem_url: "",
+    editora: "",
+    ano_publicacao: ""
+  });
+  const [mensagemAdmin, setMensagemAdmin] = useState({ tipo: "", texto: "" });
+  const [subscription, setSubscription] = useState(null);
+  const [syncAtivo, setSyncAtivo] = useState(false);
+
+  // ========== EFFECT INICIAL - CARREGAR DADOS ==========
   useEffect(function () {
-    async function carregarProdutos() {
-      console.log("TESTANDO SUPABASE...");
-
-      const resposta = await supabase
-        .from("produtos")
-        .select("*")
-        .order("id", { ascending: true });
-
-      console.log("DADOS DO SUPABASE:", resposta.data);
-      console.log("ERRO DO SUPABASE:", resposta.error);
-
-      if (resposta.error) {
-        setErro(resposta.error.message);
+    async function inicializar() {
+      console.log("🚀 Inicializando aplicação...");
+      
+      // Carregar produtos
+      const resultado = await lerTodosOsLivros();
+      if (resultado.erro) {
+        setErro(resultado.erro);
         setProdutos([]);
       } else {
-        setProdutos(resposta.data || []);
+        setProdutos(resultado.dados);
+        setErro("");
       }
-
       setCarregando(false);
+
+      // Inscrever-se às mudanças em tempo real
+      const sub = await inscreverAMudancas(async (payload) => {
+        console.log("⚡ Mudança detectada:", payload.eventType);
+        setSyncAtivo(true);
+
+        // Recarregar dados quando houver mudança
+        const novosDados = await lerTodosOsLivros();
+        if (!novosDados.erro) {
+          setProdutos(novosDados.dados);
+        }
+
+        setSyncAtivo(false);
+      });
+
+      if (sub) {
+        setSubscription(sub);
+      }
     }
 
-    carregarProdutos();
+    inicializar();
+
+    // Cleanup ao desmontar
+    return function () {
+      if (subscription) {
+        desinscreverDeMudancas(subscription);
+      }
+    };
   }, []);
+
+  // ========== FUNÇÕES CRUD ==========
+  async function handleCriarLivro(event) {
+    event.preventDefault();
+
+    if (!formulario.titulo || !formulario.autor || !formulario.preco) {
+      setMensagemAdmin({ tipo: "erro", texto: "Preencha os campos obrigatórios." });
+      return;
+    }
+
+    console.log("📝 Criando livro...");
+    const resultado = await criarLivro(formulario);
+
+    if (resultado.erro) {
+      setMensagemAdmin({ tipo: "erro", texto: resultado.erro });
+    } else {
+      setMensagemAdmin({ tipo: "sucesso", texto: "Livro criado com sucesso!" });
+      resetarFormulario();
+      setModo("listar");
+      
+      // Atualizar lista
+      const novosDados = await lerTodosOsLivros();
+      if (!novosDados.erro) {
+        setProdutos(novosDados.dados);
+      }
+    }
+
+    // Limpar mensagem após 3 segundos
+    setTimeout(() => setMensagemAdmin({ tipo: "", texto: "" }), 3000);
+  }
+
+  async function handleAtualizarLivro(event) {
+    event.preventDefault();
+
+    if (!livroEditando || !livroEditando.id) {
+      setMensagemAdmin({ tipo: "erro", texto: "Erro ao atualizar livro." });
+      return;
+    }
+
+    console.log("✏️ Atualizando livro...");
+    const resultado = await atualizarLivro(livroEditando.id, formulario);
+
+    if (resultado.erro) {
+      setMensagemAdmin({ tipo: "erro", texto: resultado.erro });
+    } else {
+      setMensagemAdmin({ tipo: "sucesso", texto: "Livro atualizado com sucesso!" });
+      resetarFormulario();
+      setModo("listar");
+      setLivroEditando(null);
+      
+      // Atualizar lista
+      const novosDados = await lerTodosOsLivros();
+      if (!novosDados.erro) {
+        setProdutos(novosDados.dados);
+      }
+    }
+
+    setTimeout(() => setMensagemAdmin({ tipo: "", texto: "" }), 3000);
+  }
+
+  async function handleDeletarLivro(id) {
+    if (!confirm("Tem certeza que deseja deletar este livro?")) {
+      return;
+    }
+
+    console.log("🗑️ Deletando livro...");
+    const resultado = await deletarLivro(id);
+
+    if (resultado.erro) {
+      setMensagemAdmin({ tipo: "erro", texto: resultado.erro });
+    } else {
+      setMensagemAdmin({ tipo: "sucesso", texto: "Livro deletado com sucesso!" });
+      
+      // Atualizar lista
+      const novosDados = await lerTodosOsLivros();
+      if (!novosDados.erro) {
+        setProdutos(novosDados.dados);
+      }
+    }
+
+    setTimeout(() => setMensagemAdmin({ tipo: "", texto: "" }), 3000);
+  }
+
+  function abrirFormularioCriacao() {
+    resetarFormulario();
+    setLivroEditando(null);
+    setModo("criar");
+    setMensagemAdmin({ tipo: "", texto: "" });
+  }
+
+  function abrirFormularioEdicao(livro) {
+    setFormulario({
+      titulo: livro.titulo || "",
+      autor: livro.autor || "",
+      preco: livro.preco || "",
+      categoria_id: livro.categoria_id || "1",
+      estoque: livro.estoque || "",
+      descricao: livro.descricao || "",
+      imagem_url: livro.imagem_url || "",
+      editora: livro.editora || "",
+      ano_publicacao: livro.ano_publicacao || ""
+    });
+    setLivroEditando(livro);
+    setModo("editar");
+    setMensagemAdmin({ tipo: "", texto: "" });
+  }
+
+  function resetarFormulario() {
+    setFormulario({
+      titulo: "",
+      autor: "",
+      preco: "",
+      categoria_id: "1",
+      estoque: "",
+      descricao: "",
+      imagem_url: "",
+      editora: "",
+      ano_publicacao: ""
+    });
+  }
+
+  function fecharAdmin() {
+    setAdminOpen(false);
+    setModo("listar");
+    resetarFormulario();
+    setLivroEditando(null);
+  }
 
   const books = useMemo(function () {
     return produtos.map(function (produto, index) {
@@ -325,9 +569,249 @@ function App() {
     ]
   };
 
+  // ========== COMPONENTE ADMIN MODAL ==========
+  function renderAdminModal() {
+    return (
+      <div className={adminOpen ? "admin-modal" : "admin-modal hidden"}>
+        <div className="admin-content">
+          <div className="admin-header">
+            <h2>
+              {modo === "listar" ? "Gerenciar Livros" : modo === "criar" ? "Novo Livro" : "Editar Livro"}
+            </h2>
+            <button
+              className="admin-close"
+              onClick={fecharAdmin}
+            >
+              ×
+            </button>
+          </div>
+
+          {mensagemAdmin.texto && (
+            <div className={mensagemAdmin.tipo === "sucesso" ? "success-banner" : "error-banner"}>
+              {mensagemAdmin.texto}
+            </div>
+          )}
+
+          {modo === "listar" && (
+            <div>
+              <button
+                className="btn-save"
+                onClick={abrirFormularioCriacao}
+                style={{ marginBottom: "20px" }}
+              >
+                + Adicionar Novo Livro
+              </button>
+
+              <div className="admin-section">
+                <h3>Livros Existentes ({produtos.length})</h3>
+
+                {produtos.length === 0 ? (
+                  <p style={{ color: "#8F7A6C" }}>Nenhum livro cadastrado.</p>
+                ) : (
+                  produtos.map(function (livro) {
+                    return (
+                      <div className="book-item" key={livro.id}>
+                        <div className="book-item-info">
+                          <p className="book-item-title">
+                            {livro.titulo}
+                          </p>
+                          <p className="book-item-details">
+                            {livro.autor} • {livro.categoria_id} • {formatPrice(livro.preco)} • Estoque: {livro.estoque} • {livro.editora}
+                          </p>
+                        </div>
+                        <div className="book-item-actions">
+                          <button
+                            className="btn-small btn-edit"
+                            onClick={function () {
+                              abrirFormularioEdicao(livro);
+                            }}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            className="btn-small btn-delete"
+                            onClick={function () {
+                              handleDeletarLivro(livro.id);
+                            }}
+                          >
+                            Deletar
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="admin-section">
+                <div className="realtime-indicator">
+                  <span className="realtime-dot"></span>
+                  Sincronização em tempo real {syncAtivo ? "ativa" : "aguardando"}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {(modo === "criar" || modo === "editar") && (
+            <form onSubmit={modo === "criar" ? handleCriarLivro : handleAtualizarLivro}>
+              <div className="form-group">
+                <label className="form-label">Título *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={formulario.titulo}
+                  onChange={function (e) {
+                    setFormulario({ ...formulario, titulo: e.target.value });
+                  }}
+                  placeholder="Digite o título do livro"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Autor *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={formulario.autor}
+                  onChange={function (e) {
+                    setFormulario({ ...formulario, autor: e.target.value });
+                  }}
+                  placeholder="Digite o nome do autor"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Preço (R$) *</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={formulario.preco}
+                  onChange={function (e) {
+                    setFormulario({ ...formulario, preco: e.target.value });
+                  }}
+                  placeholder="0.00"
+                  step="0.01"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Categoria ID *</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={formulario.categoria_id}
+                  onChange={function (e) {
+                    setFormulario({ ...formulario, categoria_id: e.target.value });
+                  }}
+                  placeholder="Ex: 1, 2, 3..."
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Editora</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={formulario.editora}
+                  onChange={function (e) {
+                    setFormulario({ ...formulario, editora: e.target.value });
+                  }}
+                  placeholder="Nome da editora"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Ano de Publicação</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={formulario.ano_publicacao}
+                  onChange={function (e) {
+                    setFormulario({ ...formulario, ano_publicacao: e.target.value });
+                  }}
+                  placeholder="Ex: 2023"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Estoque</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={formulario.estoque}
+                  onChange={function (e) {
+                    setFormulario({ ...formulario, estoque: e.target.value });
+                  }}
+                  placeholder="0"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Descrição</label>
+                <textarea
+                  className="form-textarea"
+                  value={formulario.descricao}
+                  onChange={function (e) {
+                    setFormulario({ ...formulario, descricao: e.target.value });
+                  }}
+                  placeholder="Digite uma descrição do livro..."
+                ></textarea>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">URL da Imagem</label>
+                <input
+                  type="url"
+                  className="form-input"
+                  value={formulario.imagem_url}
+                  onChange={function (e) {
+                    setFormulario({ ...formulario, imagem_url: e.target.value });
+                  }}
+                  placeholder="https://exemplo.com/capa.jpg"
+                />
+              </div>
+
+              <div className="form-actions">
+                <button type="submit" className="btn-save">
+                  {modo === "criar" ? "Criar Livro" : "Atualizar Livro"}
+                </button>
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={function () {
+                    resetarFormulario();
+                    setModo("listar");
+                  }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <style>{CSS}</style>
+
+      {renderAdminModal()}
+
+      <button
+        className="admin-button"
+        onClick={function () {
+          setAdminOpen(true);
+        }}
+        title="Gerenciar livros (CRUD)"
+      >
+        ⚙️
+      </button>
 
       <header className="navbar">
         <div className="container nav-inner">
