@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "./services/supabaseClient";
+import { useAuth } from "./auth/AuthContext";
+import AuthScreen from "./auth/AuthScreen";
 import {
   criarLivro,
   lerTodosOsLivros,
@@ -36,6 +37,18 @@ const CSS = [
   ".nav-links a:hover { color: #FFFFFF; }",
 
   ".nav-actions { display: flex; align-items: center; gap: 10px; }",
+
+  ".auth-trigger { min-height: 40px; padding: 0 14px; border: 1px solid #65462F; border-radius: 4px; background: transparent; color: #F5EDE1; }",
+
+  ".auth-profile { display: flex; align-items: center; gap: 9px; color: #D8C8B8; font-size: 12px; }",
+
+  ".auth-avatar { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; background: #65462F; }",
+
+  ".auth-signout { padding: 7px 9px; border: 0; background: transparent; color: #D9A84E; font-size: 12px; }",
+
+  ".mobile-account { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #493327; color: #D8C8B8; font-size: 13px; }",
+
+  ".mobile-account button { border: 0; background: transparent; color: #D9A84E; }",
 
   ".icon-button { width: 40px; height: 40px; border: 1px solid #65462F; border-radius: 50%; background: transparent; color: #F5EDE1; }",
 
@@ -163,7 +176,7 @@ const CSS = [
 
   "@media (max-width: 900px) { .nav-links { display: none; } .hero-grid { grid-template-columns: 1fr; } .book-grid { grid-template-columns: repeat(2, 1fr); } .newsletter { grid-template-columns: 1fr; } }",
 
-  "@media (max-width: 600px) { .container { width: calc(100% - 28px); } .book-grid { grid-template-columns: repeat(2, 1fr); gap: 15px; } .section-head { display: block; } .section-description { margin-top: 20px; } .newsletter-form { display: block; } .newsletter-form button { width: 100%; margin-top: 10px; padding: 14px; } .shelf { height: 230px; } .add-button { opacity: 1; } }",
+  "@media (max-width: 600px) { .container { width: calc(100% - 28px); } .book-grid { grid-template-columns: repeat(2, 1fr); gap: 15px; } .section-head { display: block; } .section-description { margin-top: 20px; } .newsletter-form { display: block; } .newsletter-form button { width: 100%; margin-top: 10px; padding: 14px; } .shelf { height: 230px; } .add-button { opacity: 1; } .auth-profile, .auth-trigger, .search-button { display: none; } .logo { font-size: 22px; } .logo span { display: none; } .nav-actions { gap: 6px; } .cart-button { padding: 0 10px; } .cart-text { display: none; } }",
 
   /* ========== CRUD MANAGEMENT STYLES ========== */
   ".admin-button { position: fixed; bottom: 30px; right: 30px; width: 60px; height: 60px; border-radius: 50%; background: #B8863B; color: #1B120D; font-size: 24px; border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,.3); z-index: 99; transition: transform .2s, box-shadow .2s; }",
@@ -253,6 +266,7 @@ function getCategory(produto) {
 }
 
 function App() {
+  const { user, loading: authLoading, signOut } = useAuth();
   // ========== STATE GERENCIAMENTO PRINCIPAL ==========
   const [produtos, setProdutos] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -263,6 +277,7 @@ function App() {
   const [activeSection, setActiveSection] = useState("Ficção");
   const [email, setEmail] = useState("");
   const [newsletterMessage, setNewsletterMessage] = useState("");
+  const [authOpen, setAuthOpen] = useState(false);
 
   // ========== STATE GERENCIAMENTO CRUD ==========
   const [adminOpen, setAdminOpen] = useState(false);
@@ -571,6 +586,8 @@ function App() {
 
   // ========== COMPONENTE ADMIN MODAL ==========
   function renderAdminModal() {
+    if (!user) return null;
+
     return (
       <div className={adminOpen ? "admin-modal" : "admin-modal hidden"}>
         <div className="admin-content">
@@ -801,17 +818,22 @@ function App() {
     <div className="app">
       <style>{CSS}</style>
 
-      {renderAdminModal()}
+      {user && renderAdminModal()}
 
       <button
         className="admin-button"
         onClick={function () {
-          setAdminOpen(true);
+          if (user) setAdminOpen(true);
+          else setAuthOpen(true);
         }}
-        title="Gerenciar livros (CRUD)"
+        disabled={authLoading}
+        title={user ? "Gerenciar livros (CRUD)" : "Entre para gerenciar os livros"}
+        aria-label={user ? "Gerenciar livros" : "Entrar para gerenciar livros"}
       >
         ⚙️
       </button>
+
+      {authOpen && !user && <AuthScreen onClose={function () { setAuthOpen(false); }} />}
 
       <header className="navbar">
         <div className="container nav-inner">
@@ -828,8 +850,22 @@ function App() {
           </nav>
 
           <div className="nav-actions">
+            {user ? (
+              <div className="auth-profile">
+                {user.user_metadata?.avatar_url && <img className="auth-avatar" src={user.user_metadata.avatar_url} alt="" />}
+                <span>{user.user_metadata?.full_name || user.email}</span>
+                <button className="auth-signout" onClick={async function () { await signOut(); setAdminOpen(false); }}>
+                  Sair
+                </button>
+              </div>
+            ) : (
+              <button className="auth-trigger" onClick={function () { setAuthOpen(true); }} disabled={authLoading}>
+                {authLoading ? "..." : "Entrar"}
+              </button>
+            )}
+
             <button
-              className="icon-button"
+              className="icon-button search-button"
               onClick={function () {
                 alert("Busca em breve.");
               }}
@@ -843,7 +879,7 @@ function App() {
                 setCartOpen(true);
               }}
             >
-              🛍 Sacola
+              <span className="cart-label">🛍</span> <span className="cart-text">Sacola</span>
               <span className="cart-number">
                 {totalItens}
               </span>
@@ -862,6 +898,14 @@ function App() {
 
         <div className={mobileOpen ? "mobile-menu open" : "mobile-menu"}>
           <div className="container">
+            {user ? (
+              <div className="mobile-account">
+                <span>{user.user_metadata?.full_name || user.email}</span>
+                <button onClick={async function () { await signOut(); setAdminOpen(false); setMobileOpen(false); }}>Sair</button>
+              </div>
+            ) : (
+              <a href="#entrar" onClick={function (event) { event.preventDefault(); setAuthOpen(true); setMobileOpen(false); }}>Entrar / Cadastro</a>
+            )}
             <a href="#acervo">Acervo</a>
             <a href="#secoes">Seções</a>
             <a href="#historia">Nossa história</a>
