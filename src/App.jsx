@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { useAuth } from "./auth/AuthContext";
 import AuthScreen from "./auth/AuthScreen";
 import {
@@ -73,6 +74,16 @@ const CSS = [
   ".hero p { max-width: 520px; color: #B8A79A; line-height: 1.7; }",
 
   ".hero-button { display: inline-block; margin-top: 20px; padding: 14px 22px; border-radius: 4px; background: #F5EDE1; color: #1B120D; text-decoration: none; font-weight: bold; }",
+
+  ".camera-section { margin-top: 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }",
+
+  ".camera-button { padding: 14px 20px; border: 0; border-radius: 6px; background: #B8863B; color: #1B120D; font-weight: bold; }",
+
+  ".camera-preview { width: 200px; height: 200px; border-radius: 12px; overflow: hidden; border: 1px solid #65462F; background: #241710; display: flex; align-items: center; justify-content: center; }",
+
+  ".camera-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }",
+
+  ".camera-error { margin-top: 12px; color: #F2A69A; font-size: 13px; }",
 
   ".shelf { height: 300px; display: flex; align-items: end; gap: 7px; padding: 15px; border-bottom: 7px solid #5C3A28; border-radius: 6px; background: #241710; }",
 
@@ -278,6 +289,8 @@ function App() {
   const [email, setEmail] = useState("");
   const [newsletterMessage, setNewsletterMessage] = useState("");
   const [authOpen, setAuthOpen] = useState(false);
+  const [fotoPreview, setFotoPreview] = useState("");
+  const [fotoErro, setFotoErro] = useState("");
 
   // ========== STATE GERENCIAMENTO CRUD ==========
   const [adminOpen, setAdminOpen] = useState(false);
@@ -344,6 +357,42 @@ function App() {
   }, []);
 
   // ========== FUNÇÕES CRUD ==========
+  async function abrirCameraOuGaleria() {
+    setFotoErro("");
+
+    if (!window.Capacitor) {
+      setFotoErro("A câmera precisa ser usada dentro do app Capacitor em Android.");
+      return;
+    }
+
+    try {
+      const permissionStatus = await Camera.requestPermissions();
+      const cameraOk = permissionStatus.camera === "granted" || permissionStatus.camera === "limited";
+      const photosOk = permissionStatus.photos === "granted" || permissionStatus.photos === "limited";
+
+      if (!cameraOk && !photosOk) {
+        throw new Error("Permissão para câmera/galeria negada pelo sistema.");
+      }
+
+      const photo = await Camera.getPhoto({
+        quality: 90,
+        allowEditing: false,
+        resultType: CameraResultType.Uri,
+        source: CameraSource.Prompt,
+        saveToGallery: false
+      });
+
+      if (!photo || !photo.webPath) {
+        throw new Error("Nenhuma imagem foi retornada pela câmera ou galeria.");
+      }
+
+      setFotoPreview(photo.webPath);
+    } catch (error) {
+      console.warn("Ação de câmera cancelada ou recusada:", error);
+      setFotoErro("Ação cancelada ou permissão negada. O aplicativo continuou funcionando normalmente.");
+    }
+  }
+
   async function handleCriarLivro(event) {
     event.preventDefault();
 
@@ -958,6 +1007,24 @@ function App() {
                 );
               })}
             </div>
+          </div>
+
+          <div className="camera-section">
+            <button className="camera-button" onClick={abrirCameraOuGaleria}>
+              Tirar Foto / Galeria
+            </button>
+
+            {fotoPreview && (
+              <div className="camera-preview">
+                <img src={fotoPreview} alt="Pré-visualização da foto capturada" />
+              </div>
+            )}
+
+            {fotoErro && <div className="camera-error">{fotoErro}</div>}
+
+            <a href="#acervo" className="hero-button">
+              Explorar acervo
+            </a>
           </div>
         </section>
 
