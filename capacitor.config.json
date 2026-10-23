@@ -1,1 +1,5 @@
-{"appId":"com.livraria.alfarrabio","appName":"Alfarrábio","webDir":"dist"}
+{
+  "appId": "com.livraria.alfarrabio",
+  "appName": "Alfarrábio",
+  "webDir": "www"
+}

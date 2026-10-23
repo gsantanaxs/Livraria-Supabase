@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Camera } from "@capacitor/camera";
+import { Capacitor } from "@capacitor/core";
+import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { useAuth } from "./auth/AuthContext";
 import AuthScreen from "./auth/AuthScreen";
 import {
@@ -10,6 +11,7 @@ import {
   inscreverAMudancas,
   desinscreverDeMudancas
 } from "./services/crudService";
+import { uploadCameraPhoto } from "./services/photoStorageService";
 
 const CSS = [
   ":root { color-scheme: dark; }",
@@ -75,41 +77,22 @@ const CSS = [
 
   ".hero-button { display: inline-block; margin-top: 20px; padding: 14px 22px; border-radius: 4px; background: #F5EDE1; color: #1B120D; text-decoration: none; font-weight: bold; }",
 
-  ".photo-studio { padding: 68px 0 84px; border-top: 1px solid #3A281D; background: radial-gradient(ellipse at 20% 0%, rgba(184,134,59,.10), transparent 48%), #1B120D; }",
-  ".photo-heading { max-width: 760px; margin: 0 auto 34px; text-align: center; }",
-  ".photo-heading h2 { margin: 12px 0; color: #F5EDE1; font-family: Georgia, serif; font-size: clamp(34px, 5vw, 56px); line-height: 1.05; font-weight: 400; }",
-  ".photo-heading p { margin: 0 auto; max-width: 620px; color: #B8A79A; line-height: 1.7; }",
-  ".photo-layout { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: 22px; max-width: 980px; margin: 0 auto; }",
-  ".photo-card, .photo-how { padding: 20px; border: 1px solid #65462F; border-radius: 16px; background: linear-gradient(145deg, #2A1C14, #241710); box-shadow: 0 18px 48px rgba(0,0,0,.18); }",
-  ".photo-frame { min-height: 280px; display: grid; place-items: center; overflow: hidden; border: 1px dashed #806E60; border-radius: 12px; background: #211710; }",
-  ".photo-frame img { width: 100%; height: 100%; min-height: 280px; object-fit: cover; display: block; }",
-  ".photo-empty { display: flex; flex-direction: column; align-items: center; padding: 28px; text-align: center; }",
-  ".photo-icon { width: 66px; height: 66px; display: grid; place-items: center; margin-bottom: 16px; border: 1px solid #806044; border-radius: 50%; background: rgba(184,134,59,.14); color: #D9A84E; }",
-  ".photo-empty h3 { margin: 0; color: #F5EDE1; font-family: Georgia, serif; font-size: 24px; font-weight: 400; }",
-  ".photo-empty p { margin: 9px 0 0; color: #A99383; line-height: 1.5; }",
-  ".photo-main-button { width: 100%; min-height: 52px; margin-top: 16px; padding: 14px 20px; border: 0; border-radius: 8px; background: #B8863B; color: #1B120D; font-weight: 700; transition: background .2s, transform .2s; }",
-  ".photo-main-button:hover { background: #D9A84E; transform: translateY(-1px); }",
-  ".photo-main-button:disabled { cursor: wait; opacity: .7; }",
-  ".photo-error { margin: 12px 2px 0; color: #F2A69A; font-size: 13px; line-height: 1.5; }",
-  ".photo-how { display: flex; flex-direction: column; justify-content: center; padding: 28px; }",
-  ".photo-how h3 { margin: 10px 0 8px; color: #F5EDE1; font-family: Georgia, serif; font-size: 32px; line-height: 1.1; font-weight: 400; }",
-  ".photo-how > p { margin: 0 0 18px; color: #A99383; line-height: 1.6; }",
-  ".photo-steps { display: grid; gap: 10px; }",
-  ".photo-step { display: grid; grid-template-columns: 38px 1fr; gap: 0 12px; align-items: start; padding: 13px; border: 1px solid #493327; border-radius: 10px; background: rgba(27,18,13,.55); }",
-  ".photo-step-number { grid-row: span 2; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: #65462F; color: #E0B66A; font-family: monospace; font-size: 12px; }",
-  ".photo-step strong { color: #F5EDE1; font-size: 14px; }",
-  ".photo-step span:last-child { margin-top: 4px; color: #A99383; font-size: 12px; line-height: 1.45; }",
-  ".photo-chooser { position: fixed; inset: 0; z-index: 250; display: flex; align-items: flex-end; justify-content: center; padding-top: 24px; background: rgba(12,8,6,.72); backdrop-filter: blur(5px); }",
-  ".photo-sheet { width: min(520px, 100%); padding: 12px 20px max(22px, env(safe-area-inset-bottom)); border: 1px solid #65462F; border-bottom: 0; border-radius: 20px 20px 0 0; background: #241710; box-shadow: 0 -18px 55px rgba(0,0,0,.35); }",
-  ".photo-sheet-handle { width: 42px; height: 4px; margin: 0 auto 18px; border-radius: 99px; background: #806E60; }",
-  ".photo-sheet-label { margin: 0; color: #D9A84E; font-family: monospace; font-size: 10px; letter-spacing: 3px; text-transform: uppercase; }",
-  ".photo-sheet h3 { margin: 7px 0 14px; color: #F5EDE1; font-family: Georgia, serif; font-size: 25px; font-weight: 400; }",
-  ".photo-choice { width: 100%; display: flex; align-items: center; gap: 14px; padding: 14px 12px; border: 0; border-radius: 10px; background: transparent; color: #F5EDE1; text-align: left; font-weight: 600; }",
-  ".photo-choice:hover { background: #38261B; }",
-  ".photo-choice-icon { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid #65462F; border-radius: 10px; background: rgba(184,134,59,.12); color: #D9A84E; }",
-  ".photo-choice-cancel { margin-top: 8px; border-top: 1px solid #493327; color: #D9A84E; }",
-  "@media (max-width: 760px) { .photo-studio { padding: 54px 0 64px; } .photo-heading { margin-bottom: 24px; text-align: left; } .photo-heading p { margin-left: 0; } .photo-layout { grid-template-columns: 1fr; gap: 14px; } .photo-how { padding: 22px; } .photo-frame, .photo-frame img { min-height: 240px; } }",
-  "@media (max-width: 420px) { .photo-card { padding: 14px; } .photo-frame, .photo-frame img { min-height: 210px; } .photo-empty { padding: 22px 14px; } .photo-how h3 { font-size: 28px; } }",
+  ".camera-section { margin-top: 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }",
+
+  ".camera-button { padding: 14px 20px; border: 0; border-radius: 6px; background: #B8863B; color: #1B120D; font-weight: bold; }",
+
+  ".camera-button:disabled { cursor: wait; opacity: .65; }",
+
+  ".camera-preview { width: 200px; height: 200px; border-radius: 12px; overflow: hidden; border: 1px solid #65462F; background: #241710; display: flex; align-items: center; justify-content: center; }",
+
+  ".camera-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }",
+
+  ".camera-status { color: #D9A84E; font-size: 13px; }",
+
+  ".camera-link { color: #D9A84E; font-size: 13px; }",
+
+  ".camera-error { margin-top: 12px; color: #F2A69A; font-size: 13px; }",
+
   ".shelf { height: 300px; display: flex; align-items: end; gap: 7px; padding: 15px; border-bottom: 7px solid #5C3A28; border-radius: 6px; background: #241710; }",
 
   ".spine { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; padding: 8px; border-radius: 4px 4px 0 0; background: #63432E; color: #F5EDE1; writing-mode: vertical-rl; cursor: pointer; transition: .3s; }",
@@ -316,8 +299,8 @@ function App() {
   const [authOpen, setAuthOpen] = useState(false);
   const [fotoPreview, setFotoPreview] = useState("");
   const [fotoErro, setFotoErro] = useState("");
-  const [fotoSeletorOpen, setFotoSeletorOpen] = useState(false);
-  const [fotoCarregando, setFotoCarregando] = useState(false);
+  const [fotoEnviando, setFotoEnviando] = useState(false);
+  const [fotoUrlPublica, setFotoUrlPublica] = useState("");
 
   // ========== STATE GERENCIAMENTO CRUD ==========
   const [adminOpen, setAdminOpen] = useState(false);
@@ -384,43 +367,49 @@ function App() {
   }, []);
 
   // ========== FUNÇÕES CRUD ==========
-  async function abrirCamera(source) {
+  async function abrirCameraOuGaleria() {
     setFotoErro("");
 
-    if (!window.Capacitor) {
-      setFotoErro("A câmera precisa ser usada dentro do app Capacitor em Android.");
+    if (!user) {
+      setFotoErro("Entre na sua conta para enviar fotos ao armazenamento.");
+      setAuthOpen(true);
       return;
     }
 
-    setFotoCarregando(true);
     try {
-      let photo;
-      if (source === "camera") {
-        photo = await Camera.takePhoto({ quality: 90, editable: "no" });
-      } else {
-        const { results } = await Camera.chooseFromGallery({ quality: 90 });
-        photo = results && results[0];
+      setFotoEnviando(true);
+      if (Capacitor.getPlatform() !== "web") {
+        const permissionStatus = await Camera.requestPermissions();
+        const cameraOk = permissionStatus.camera === "granted" || permissionStatus.camera === "limited";
+        const photosOk = permissionStatus.photos === "granted" || permissionStatus.photos === "limited";
+
+        if (!cameraOk && !photosOk) {
+          throw new Error("Permissão para câmera/galeria negada pelo sistema.");
+        }
       }
 
-      if (photo && photo.webPath) {
-        setFotoPreview(photo.webPath);
+      const photo = await Camera.getPhoto({
+        quality: 90,
+        allowEditing: false,
+        resultType: CameraResultType.Uri,
+        source: CameraSource.Prompt,
+        saveToGallery: false
+      });
+
+      if (!photo || !photo.webPath) {
+        throw new Error("Nenhuma imagem foi retornada pela câmera ou galeria.");
       }
+
+      setFotoPreview(photo.webPath);
+      setFotoUrlPublica("");
+      const publicUrl = await uploadCameraPhoto(photo, user.id);
+      setFotoPreview(publicUrl);
+      setFotoUrlPublica(publicUrl);
     } catch (error) {
-      const code = error && error.code;
-      console.warn("Falha ao abrir câmera/galeria:", error);
-
-      if (code === "OS-PLUG-CAMR-0006") return;
-      if (code === "OS-PLUG-CAMR-0003") {
-        setFotoErro("Permita o acesso à câmera em Configurações > Apps > Alfarrábio > Permissões.");
-      } else if (code === "OS-PLUG-CAMR-0005") {
-        setFotoErro("Não foi possível acessar as fotos. Tente escolher a imagem novamente.");
-      } else if (code === "OS-PLUG-CAMR-0007") {
-        setFotoErro("Este aparelho não encontrou uma câmera disponível.");
-      } else {
-        setFotoErro("Não foi possível abrir a câmera ou galeria. " + ((error && error.message) || "Tente novamente."));
-      }
+      console.error("Não foi possível capturar ou enviar a foto:", error);
+      setFotoErro(error instanceof Error ? error.message : "Não foi possível enviar a foto.");
     } finally {
-      setFotoCarregando(false);
+      setFotoEnviando(false);
     }
   }
 
@@ -1040,72 +1029,30 @@ function App() {
             </div>
           </div>
 
-        </section>
+          <div className="camera-section">
+            <button className="camera-button" onClick={abrirCameraOuGaleria} disabled={fotoEnviando}>
+              {fotoEnviando ? "Enviando foto..." : "Tirar Foto / Galeria"}
+            </button>
 
-        <section className="photo-studio" id="foto">
-          <div className="container">
-            <div className="photo-heading">
-              <div className="eyebrow">UM REGISTRO PARA GUARDAR</div>
-              <h2>Uma imagem também conta histórias.</h2>
-              <p>Tire uma foto ou escolha uma imagem do seu celular. A prévia aparece aqui, com o cuidado de uma página feita para guardar boas histórias.</p>
-            </div>
-
-            <div className="photo-layout">
-              <div className="photo-card">
-                <div className="photo-frame">
-                  {fotoPreview ? (
-                    <img src={fotoPreview} alt="Prévia da imagem selecionada" />
-                  ) : (
-                    <div className="photo-empty">
-                      <div className="photo-icon" aria-hidden="true">
-                        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M14 4h-4L8 6H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-3l-2-2Z" />
-                          <circle cx="12" cy="12" r="3.2" />
-                        </svg>
-                      </div>
-                      <h3>Nenhuma imagem selecionada</h3>
-                      <p>Use o botão abaixo para começar.</p>
-                    </div>
-                  )}
-                </div>
-
-                <button className="photo-main-button" onClick={() => setFotoSeletorOpen(true)} disabled={fotoCarregando}>
-                  {fotoCarregando ? "Abrindo câmera…" : fotoPreview ? "Escolher outra imagem" : "Selecionar imagem"}
-                </button>
-                {fotoErro && <p className="photo-error" role="alert">{fotoErro}</p>}
+            {fotoPreview && (
+              <div className="camera-preview">
+                <img src={fotoPreview} alt="Foto capturada e armazenada" />
               </div>
+            )}
 
-              <div className="photo-how">
-                <div className="eyebrow">COMO FUNCIONA</div>
-                <h3>Seu momento, do seu jeito.</h3>
-                <p>Escolha como quer trazer uma imagem para a prévia. Você pode trocar a seleção quando quiser.</p>
-                <div className="photo-steps">
-                  <div className="photo-step"><span className="photo-step-number">01</span><strong>Escolha a origem</strong><span>Abra a galeria ou tire uma foto agora.</span></div>
-                  <div className="photo-step"><span className="photo-step-number">02</span><strong>Autorize o acesso</strong><span>O Android pede acesso à câmera quando necessário.</span></div>
-                  <div className="photo-step"><span className="photo-step-number">03</span><strong>Confira a prévia</strong><span>A imagem escolhida aparece no quadro ao lado.</span></div>
-                </div>
-              </div>
-            </div>
+            {fotoEnviando && <div className="camera-status" role="status">Enviando foto para o Supabase Storage...</div>}
+            {fotoUrlPublica && (
+              <a className="camera-link" href={fotoUrlPublica} target="_blank" rel="noreferrer">
+                Abrir foto pública
+              </a>
+            )}
+
+            {fotoErro && <div className="camera-error">{fotoErro}</div>}
+
+            <a href="#acervo" className="hero-button">
+              Explorar acervo
+            </a>
           </div>
-
-          {fotoSeletorOpen && (
-            <div className="photo-chooser" role="presentation" onClick={() => setFotoSeletorOpen(false)}>
-              <div className="photo-sheet" role="dialog" aria-modal="true" aria-labelledby="photo-sheet-title" onClick={(event) => event.stopPropagation()}>
-                <div className="photo-sheet-handle" />
-                <p className="photo-sheet-label">ALFARRÁBIO · IMAGENS</p>
-                <h3 id="photo-sheet-title">De onde vem sua foto?</h3>
-                <button className="photo-choice" onClick={() => { setFotoSeletorOpen(false); abrirCamera("galeria"); }}>
-                  <span className="photo-choice-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1.5"/><path d="m21 15-5-5L5 20"/></svg></span>
-                  Escolher da galeria
-                </button>
-                <button className="photo-choice" onClick={() => { setFotoSeletorOpen(false); abrirCamera("camera"); }}>
-                  <span className="photo-choice-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M14 4h-4L8 6H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-3l-2-2Z"/><circle cx="12" cy="12" r="3"/></svg></span>
-                  Tirar uma foto
-                </button>
-                <button className="photo-choice photo-choice-cancel" onClick={() => setFotoSeletorOpen(false)}>Cancelar</button>
-              </div>
-            </div>
-          )}
         </section>
 
         <section className="section" id="acervo">
