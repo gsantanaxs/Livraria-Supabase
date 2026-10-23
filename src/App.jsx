@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
+import { Camera } from "@capacitor/camera";
 import { useAuth } from "./auth/AuthContext";
 import AuthScreen from "./auth/AuthScreen";
 import {
@@ -357,7 +357,7 @@ function App() {
   }, []);
 
   // ========== FUNÇÕES CRUD ==========
-  async function abrirCameraOuGaleria() {
+  async function abrirCamera(source) {
     setFotoErro("");
 
     if (!window.Capacitor) {
@@ -366,30 +366,31 @@ function App() {
     }
 
     try {
-      const permissionStatus = await Camera.requestPermissions();
-      const cameraOk = permissionStatus.camera === "granted" || permissionStatus.camera === "limited";
-      const photosOk = permissionStatus.photos === "granted" || permissionStatus.photos === "limited";
-
-      if (!cameraOk && !photosOk) {
-        throw new Error("Permissão para câmera/galeria negada pelo sistema.");
+      let photo;
+      if (source === "camera") {
+        photo = await Camera.takePhoto({ quality: 90, editable: "no" });
+      } else {
+        const { results } = await Camera.chooseFromGallery({ quality: 90 });
+        photo = results && results[0];
       }
 
-      const photo = await Camera.getPhoto({
-        quality: 90,
-        allowEditing: false,
-        resultType: CameraResultType.Uri,
-        source: CameraSource.Prompt,
-        saveToGallery: false
-      });
-
-      if (!photo || !photo.webPath) {
-        throw new Error("Nenhuma imagem foi retornada pela câmera ou galeria.");
+      if (photo && photo.webPath) {
+        setFotoPreview(photo.webPath);
       }
-
-      setFotoPreview(photo.webPath);
     } catch (error) {
-      console.warn("Ação de câmera cancelada ou recusada:", error);
-      setFotoErro("Ação cancelada ou permissão negada. O aplicativo continuou funcionando normalmente.");
+      const code = error && error.code;
+      console.warn("Falha ao abrir câmera/galeria:", error);
+
+      if (code === "OS-PLUG-CAMR-0006") return;
+      if (code === "OS-PLUG-CAMR-0003") {
+        setFotoErro("Permita o acesso à câmera em Configurações > Apps > Alfarrábio > Permissões.");
+      } else if (code === "OS-PLUG-CAMR-0005") {
+        setFotoErro("Não foi possível acessar as fotos. Tente escolher a imagem novamente.");
+      } else if (code === "OS-PLUG-CAMR-0007") {
+        setFotoErro("Este aparelho não encontrou uma câmera disponível.");
+      } else {
+        setFotoErro("Não foi possível abrir a câmera ou galeria. " + ((error && error.message) || "Tente novamente."));
+      }
     }
   }
 
@@ -1010,8 +1011,11 @@ function App() {
           </div>
 
           <div className="camera-section">
-            <button className="camera-button" onClick={abrirCameraOuGaleria}>
-              Tirar Foto / Galeria
+            <button className="camera-button" onClick={() => abrirCamera("camera")}>
+              Tirar foto
+            </button>
+            <button className="camera-button" onClick={() => abrirCamera("galeria")}>
+              Escolher da galeria
             </button>
 
             {fotoPreview && (
