@@ -16,6 +16,9 @@ O bucket público permite leitura pública dos arquivos, mas não libera uploads
 Abra o **SQL Editor** no Supabase e execute:
 
 ```sql
+drop policy if exists "Authenticated users can upload their own photos"
+on storage.objects;
+
 create policy "Authenticated users can upload their own photos"
 on storage.objects
 for insert
@@ -25,6 +28,9 @@ with check (
   and (storage.foldername(name))[1] = (select auth.uid())::text
 );
 
+drop policy if exists "Authenticated users can list their own photos"
+on storage.objects;
+
 create policy "Authenticated users can list their own photos"
 on storage.objects
 for select
@@ -33,9 +39,21 @@ using (
   bucket_id = 'user-photos'
   and (storage.foldername(name))[1] = (select auth.uid())::text
 );
+
+drop policy if exists "Authenticated users can delete their own photos"
+on storage.objects;
+
+create policy "Authenticated users can delete their own photos"
+on storage.objects
+for delete
+to authenticated
+using (
+  bucket_id = 'user-photos'
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+);
 ```
 
-Como o bucket é público, o `SELECT` acima restringe operações autenticadas de listagem; a leitura direta dos arquivos continua pública, conforme a configuração do bucket. Não crie uma política `INSERT` para `anon`.
+Como o bucket é público, o `SELECT` acima restringe operações autenticadas de listagem; a leitura direta dos arquivos continua pública, conforme a configuração do bucket. A política `DELETE` permite limpar uma imagem caso o cadastro/atualização do livro falhe depois do upload. Não crie uma política `INSERT` para `anon`.
 
 ## 3. Configurar e executar o aplicativo
 
@@ -46,6 +64,6 @@ VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
 VITE_SUPABASE_ANON_KEY=SUA_CHAVE_PUBLICA
 ```
 
-Reinicie o servidor Vite depois de alterar as variáveis. Entre no aplicativo, permita o acesso à câmera/galeria e capture uma foto. O app converte a URI retornada pelo Capacitor em `Blob`, envia o arquivo para `user-photos/<id-do-usuario>/` e renderiza a URL pública retornada pelo Supabase.
+Reinicie o servidor Vite depois de alterar as variáveis. Entre no aplicativo e abra **Gerenciar livros → Adicionar Novo Livro**. Preencha os dados, selecione uma categoria e escolha **Adicionar foto da galeria** ou **Tirar foto**. Ao salvar, o app envia a imagem para `user-photos/<id-do-usuario>/` e grava a URL pública na coluna `produtos.imagem_url` junto com os dados do livro. A foto pode ser alterada também no formulário de edição.
 
 As chaves `anon`/publishable são destinadas ao cliente. Nunca coloque a `service_role` no React ou em variáveis `VITE_`.

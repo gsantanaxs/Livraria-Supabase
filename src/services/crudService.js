@@ -34,8 +34,10 @@ export async function criarLivro(livro) {
         estoque: parseInt(livro.estoque) || 0,
         descricao: livro.descricao || "",
         imagem_url: livro.imagem_url || "",
+        isbn: livro.isbn || null,
         editora: livro.editora || "",
-        ano_publicacao: livro.ano_publicacao ? parseInt(livro.ano_publicacao) : null
+        ano_publicacao: livro.ano_publicacao ? parseInt(livro.ano_publicacao) : null,
+        destaque: Boolean(livro.destaque)
       }])
       .select(); // Retorna o registro inserido
 
@@ -49,6 +51,25 @@ export async function criarLivro(livro) {
   } catch (erro) {
     console.error("❌ Erro inesperado:", erro);
     return { dados: null, erro: erro.message };
+  }
+}
+
+export async function lerCategorias() {
+  try {
+    const { data, error } = await supabase
+      .from("categorias")
+      .select("id, nome")
+      .order("id", { ascending: true });
+
+    if (error) {
+      console.error("❌ Erro ao ler categorias:", error);
+      return { dados: [], erro: error.message };
+    }
+
+    return { dados: data || [], erro: null };
+  } catch (error) {
+    console.error("❌ Erro inesperado ao ler categorias:", error);
+    return { dados: [], erro: error instanceof Error ? error.message : "Erro inesperado ao ler categorias." };
   }
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { useAuth } from "./auth/AuthContext";
@@ -8,10 +8,11 @@ import {
   lerTodosOsLivros,
   atualizarLivro,
   deletarLivro,
+  lerCategorias,
   inscreverAMudancas,
   desinscreverDeMudancas
 } from "./services/crudService";
-import { uploadCameraPhoto } from "./services/photoStorageService";
+import { deleteBookImage, uploadBookImage } from "./services/photoStorageService";
 
 const CSS = [
   ":root { color-scheme: dark; }",
@@ -77,21 +78,13 @@ const CSS = [
 
   ".hero-button { display: inline-block; margin-top: 20px; padding: 14px 22px; border-radius: 4px; background: #F5EDE1; color: #1B120D; text-decoration: none; font-weight: bold; }",
 
-  ".camera-section { margin-top: 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }",
+  ".image-actions { display: flex; flex-wrap: wrap; gap: 10px; }",
 
-  ".camera-button { padding: 14px 20px; border: 0; border-radius: 6px; background: #B8863B; color: #1B120D; font-weight: bold; }",
+  ".image-preview { width: 140px; height: 180px; margin-top: 12px; border: 1px solid #65462F; border-radius: 6px; object-fit: cover; }",
 
-  ".camera-button:disabled { cursor: wait; opacity: .65; }",
+  ".form-help { margin: 8px 0 0; color: #A99383; font-size: 12px; }",
 
-  ".camera-preview { width: 200px; height: 200px; border-radius: 12px; overflow: hidden; border: 1px solid #65462F; background: #241710; display: flex; align-items: center; justify-content: center; }",
-
-  ".camera-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }",
-
-  ".camera-status { color: #D9A84E; font-size: 13px; }",
-
-  ".camera-link { color: #D9A84E; font-size: 13px; }",
-
-  ".camera-error { margin-top: 12px; color: #F2A69A; font-size: 13px; }",
+  ".form-error { margin: 8px 0 0; color: #F2A69A; font-size: 12px; }",
 
   ".shelf { height: 300px; display: flex; align-items: end; gap: 7px; padding: 15px; border-bottom: 7px solid #5C3A28; border-radius: 6px; background: #241710; }",
 
@@ -297,15 +290,18 @@ function App() {
   const [email, setEmail] = useState("");
   const [newsletterMessage, setNewsletterMessage] = useState("");
   const [authOpen, setAuthOpen] = useState(false);
-  const [fotoPreview, setFotoPreview] = useState("");
-  const [fotoErro, setFotoErro] = useState("");
-  const [fotoEnviando, setFotoEnviando] = useState(false);
-  const [fotoUrlPublica, setFotoUrlPublica] = useState("");
-
   // ========== STATE GERENCIAMENTO CRUD ==========
   const [adminOpen, setAdminOpen] = useState(false);
   const [modo, setModo] = useState("listar"); // listar, criar, editar
   const [livroEditando, setLivroEditando] = useState(null);
+  const [categorias, setCategorias] = useState([]);
+  const [erroCategorias, setErroCategorias] = useState("");
+  const [carregandoCategorias, setCarregandoCategorias] = useState(false);
+  const [imagemSelecionada, setImagemSelecionada] = useState(null);
+  const [imagemPreview, setImagemPreview] = useState("");
+  const [salvandoLivro, setSalvandoLivro] = useState(false);
+  const galeriaInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
   const [formulario, setFormulario] = useState({
     titulo: "",
     autor: "",
@@ -314,8 +310,10 @@ function App() {
     estoque: "",
     descricao: "",
     imagem_url: "",
+    isbn: "",
     editora: "",
-    ano_publicacao: ""
+    ano_publicacao: "",
+    destaque: false
   });
   const [mensagemAdmin, setMensagemAdmin] = useState({ tipo: "", texto: "" });
   const [subscription, setSubscription] = useState(null);
@@ -366,50 +364,130 @@ function App() {
     };
   }, []);
 
-  // ========== FUNÇÕES CRUD ==========
-  async function abrirCameraOuGaleria() {
-    setFotoErro("");
+  useEffect(function () {
+    let ativo = true;
 
-    if (!user) {
-      setFotoErro("Entre na sua conta para enviar fotos ao armazenamento.");
-      setAuthOpen(true);
+    async function carregarCategorias() {
+      setCarregandoCategorias(true);
+      const resultado = await lerCategorias();
+      if (!ativo) return;
+
+      if (resultado.erro) {
+        setErroCategorias(resultado.erro);
+      } else {
+        setCategorias(resultado.dados);
+        setErroCategorias("");
+      }
+      setCarregandoCategorias(false);
+    }
+
+    if (user) {
+      carregarCategorias();
+    } else {
+      setCategorias([]);
+      setErroCategorias("");
+      setCarregandoCategorias(false);
+    }
+    return function () {
+      ativo = false;
+    };
+  }, [user]);
+
+  useEffect(function () {
+    if (!imagemSelecionada) {
+      setImagemPreview("");
+      return undefined;
+    }
+
+    const previewUrl = URL.createObjectURL(imagemSelecionada.blob);
+    setImagemPreview(previewUrl);
+    return function () {
+      URL.revokeObjectURL(previewUrl);
+    };
+  }, [imagemSelecionada]);
+
+  // ========== FUNÇÕES CRUD ==========
+  function lerArquivoImagem(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setMensagemAdmin({ tipo: "erro", texto: "Selecione um arquivo de imagem válido." });
+      return;
+    }
+    setImagemSelecionada({ blob: file, fileName: file.name });
+    setMensagemAdmin({ tipo: "", texto: "" });
+  }
+
+  async function adicionarFotoDaGaleria() {
+    if (Capacitor.getPlatform() === "web") {
+      galeriaInputRef.current?.click();
       return;
     }
 
     try {
-      setFotoEnviando(true);
-      if (Capacitor.getPlatform() !== "web") {
-        const permissionStatus = await Camera.requestPermissions();
-        const cameraOk = permissionStatus.camera === "granted" || permissionStatus.camera === "limited";
-        const photosOk = permissionStatus.photos === "granted" || permissionStatus.photos === "limited";
-
-        if (!cameraOk && !photosOk) {
-          throw new Error("Permissão para câmera/galeria negada pelo sistema.");
-        }
+      const permissionStatus = await Camera.requestPermissions({ permissions: ["photos"] });
+      if (permissionStatus.photos !== "granted" && permissionStatus.photos !== "limited") {
+        throw new Error("Permissão para acessar a galeria negada.");
       }
 
       const photo = await Camera.getPhoto({
         quality: 90,
         allowEditing: false,
         resultType: CameraResultType.Uri,
-        source: CameraSource.Prompt,
+        source: CameraSource.Photos,
+        saveToGallery: false
+      });
+      if (!photo?.webPath) throw new Error("A galeria não retornou uma imagem.");
+      const response = await fetch(photo.webPath);
+      if (!response.ok) throw new Error("Não foi possível carregar a foto da galeria.");
+      const blob = await response.blob();
+      setImagemSelecionada({ blob, fileName: `capa.${photo.format || "jpg"}` });
+      setMensagemAdmin({ tipo: "", texto: "" });
+    } catch (error) {
+      console.error("Não foi possível selecionar a foto da galeria:", error);
+      setMensagemAdmin({
+        tipo: "erro",
+        texto: error instanceof Error ? error.message : "Não foi possível selecionar a foto."
+      });
+    }
+  }
+
+  async function tirarFotoDoLivro() {
+    if (Capacitor.getPlatform() === "web") {
+      cameraInputRef.current?.click();
+      return;
+    }
+
+    try {
+      const permissionStatus = await Camera.requestPermissions({ permissions: ["camera"] });
+      if (permissionStatus.camera !== "granted" && permissionStatus.camera !== "limited") {
+        throw new Error("Permissão para usar a câmera negada.");
+      }
+
+      const photo = await Camera.getPhoto({
+        quality: 90,
+        allowEditing: false,
+        resultType: CameraResultType.Uri,
+        source: CameraSource.Camera,
         saveToGallery: false
       });
 
       if (!photo || !photo.webPath) {
-        throw new Error("Nenhuma imagem foi retornada pela câmera ou galeria.");
+        throw new Error("A câmera não retornou uma imagem.");
       }
 
-      setFotoPreview(photo.webPath);
-      setFotoUrlPublica("");
-      const publicUrl = await uploadCameraPhoto(photo, user.id);
-      setFotoPreview(publicUrl);
-      setFotoUrlPublica(publicUrl);
+      const response = await fetch(photo.webPath);
+      if (!response.ok) throw new Error("Não foi possível carregar a foto capturada.");
+      const blob = await response.blob();
+      setImagemSelecionada({ blob, fileName: `capa.${photo.format || "jpg"}` });
+      setMensagemAdmin({ tipo: "", texto: "" });
     } catch (error) {
-      console.error("Não foi possível capturar ou enviar a foto:", error);
-      setFotoErro(error instanceof Error ? error.message : "Não foi possível enviar a foto.");
-    } finally {
-      setFotoEnviando(false);
+      console.error("Não foi possível capturar a capa do livro:", error);
+      setMensagemAdmin({
+        tipo: "erro",
+        texto: error instanceof Error ? error.message : "Não foi possível capturar a foto."
+      });
     }
   }
 
@@ -421,25 +499,52 @@ function App() {
       return;
     }
 
-    console.log("📝 Criando livro...");
-    const resultado = await criarLivro(formulario);
-
-    if (resultado.erro) {
-      setMensagemAdmin({ tipo: "erro", texto: resultado.erro });
-    } else {
-      setMensagemAdmin({ tipo: "sucesso", texto: "Livro criado com sucesso!" });
-      resetarFormulario();
-      setModo("listar");
-      
-      // Atualizar lista
-      const novosDados = await lerTodosOsLivros();
-      if (!novosDados.erro) {
-        setProdutos(novosDados.dados);
-      }
+    if (!categorias.some((categoria) => String(categoria.id) === String(formulario.categoria_id))) {
+      setMensagemAdmin({ tipo: "erro", texto: "Selecione uma categoria válida." });
+      return;
     }
 
-    // Limpar mensagem após 3 segundos
-    setTimeout(() => setMensagemAdmin({ tipo: "", texto: "" }), 3000);
+    if (!imagemSelecionada) {
+      setMensagemAdmin({ tipo: "erro", texto: "Adicione uma foto para cadastrar o livro." });
+      return;
+    }
+
+    setSalvandoLivro(true);
+    let imagemEnviada = null;
+    try {
+      let dadosLivro = { ...formulario };
+      if (imagemSelecionada) {
+        imagemEnviada = await uploadBookImage(imagemSelecionada.blob, user.id);
+        dadosLivro = { ...dadosLivro, imagem_url: imagemEnviada.publicUrl };
+      }
+
+      const resultado = await criarLivro(dadosLivro);
+      if (resultado.erro) {
+        if (imagemEnviada) {
+          try {
+            await deleteBookImage(imagemEnviada.filePath);
+          } catch (cleanupError) {
+            console.error("A foto enviada não pôde ser removida após falha no cadastro:", cleanupError);
+          }
+        }
+        setMensagemAdmin({ tipo: "erro", texto: resultado.erro });
+        return;
+      }
+
+      setMensagemAdmin({ tipo: "sucesso", texto: "Livro e foto salvos com sucesso!" });
+      resetarFormulario();
+      setModo("listar");
+      const novosDados = await lerTodosOsLivros();
+      if (!novosDados.erro) setProdutos(novosDados.dados);
+    } catch (error) {
+      console.error("Não foi possível salvar o livro e sua foto:", error);
+      setMensagemAdmin({
+        tipo: "erro",
+        texto: error instanceof Error ? error.message : "Não foi possível salvar o livro."
+      });
+    } finally {
+      setSalvandoLivro(false);
+    }
   }
 
   async function handleAtualizarLivro(event) {
@@ -450,25 +555,48 @@ function App() {
       return;
     }
 
-    console.log("✏️ Atualizando livro...");
-    const resultado = await atualizarLivro(livroEditando.id, formulario);
+    if (!categorias.some((categoria) => String(categoria.id) === String(formulario.categoria_id))) {
+      setMensagemAdmin({ tipo: "erro", texto: "Selecione uma categoria válida." });
+      return;
+    }
 
-    if (resultado.erro) {
-      setMensagemAdmin({ tipo: "erro", texto: resultado.erro });
-    } else {
-      setMensagemAdmin({ tipo: "sucesso", texto: "Livro atualizado com sucesso!" });
+    setSalvandoLivro(true);
+    let imagemEnviada = null;
+    try {
+      let dadosLivro = { ...formulario };
+      if (imagemSelecionada) {
+        imagemEnviada = await uploadBookImage(imagemSelecionada.blob, user.id);
+        dadosLivro = { ...dadosLivro, imagem_url: imagemEnviada.publicUrl };
+      }
+
+      const resultado = await atualizarLivro(livroEditando.id, dadosLivro);
+      if (resultado.erro) {
+        if (imagemEnviada) {
+          try {
+            await deleteBookImage(imagemEnviada.filePath);
+          } catch (cleanupError) {
+            console.error("A foto enviada não pôde ser removida após falha na atualização:", cleanupError);
+          }
+        }
+        setMensagemAdmin({ tipo: "erro", texto: resultado.erro });
+        return;
+      }
+
+      setMensagemAdmin({ tipo: "sucesso", texto: "Livro e foto atualizados com sucesso!" });
       resetarFormulario();
       setModo("listar");
       setLivroEditando(null);
-      
-      // Atualizar lista
       const novosDados = await lerTodosOsLivros();
-      if (!novosDados.erro) {
-        setProdutos(novosDados.dados);
-      }
+      if (!novosDados.erro) setProdutos(novosDados.dados);
+    } catch (error) {
+      console.error("Não foi possível atualizar o livro e sua foto:", error);
+      setMensagemAdmin({
+        tipo: "erro",
+        texto: error instanceof Error ? error.message : "Não foi possível atualizar o livro."
+      });
+    } finally {
+      setSalvandoLivro(false);
     }
-
-    setTimeout(() => setMensagemAdmin({ tipo: "", texto: "" }), 3000);
   }
 
   async function handleDeletarLivro(id) {
@@ -502,6 +630,7 @@ function App() {
   }
 
   function abrirFormularioEdicao(livro) {
+    setImagemSelecionada(null);
     setFormulario({
       titulo: livro.titulo || "",
       autor: livro.autor || "",
@@ -510,8 +639,10 @@ function App() {
       estoque: livro.estoque || "",
       descricao: livro.descricao || "",
       imagem_url: livro.imagem_url || "",
+      isbn: livro.isbn || "",
       editora: livro.editora || "",
-      ano_publicacao: livro.ano_publicacao || ""
+      ano_publicacao: livro.ano_publicacao || "",
+      destaque: Boolean(livro.destaque)
     });
     setLivroEditando(livro);
     setModo("editar");
@@ -519,6 +650,7 @@ function App() {
   }
 
   function resetarFormulario() {
+    setImagemSelecionada(null);
     setFormulario({
       titulo: "",
       autor: "",
@@ -527,8 +659,10 @@ function App() {
       estoque: "",
       descricao: "",
       imagem_url: "",
+      isbn: "",
       editora: "",
-      ano_publicacao: ""
+      ano_publicacao: "",
+      destaque: false
     });
   }
 
@@ -784,17 +918,28 @@ function App() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Categoria ID *</label>
-                <input
-                  type="number"
+                <label className="form-label">Categoria *</label>
+                <select
                   className="form-input"
                   value={formulario.categoria_id}
+                  disabled={carregandoCategorias || Boolean(erroCategorias)}
                   onChange={function (e) {
                     setFormulario({ ...formulario, categoria_id: e.target.value });
                   }}
-                  placeholder="Ex: 1, 2, 3..."
                   required
-                />
+                >
+                  <option value="">
+                    {carregandoCategorias ? "Carregando categorias..." : "Selecione uma categoria"}
+                  </option>
+                  {categorias.map(function (categoria) {
+                    return (
+                      <option key={categoria.id} value={categoria.id}>
+                        {categoria.nome}
+                      </option>
+                    );
+                  })}
+                </select>
+                {erroCategorias && <p className="form-error">Erro ao carregar categorias: {erroCategorias}</p>}
               </div>
 
               <div className="form-group">
@@ -811,6 +956,19 @@ function App() {
               </div>
 
               <div className="form-group">
+                <label className="form-label">ISBN</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={formulario.isbn}
+                  onChange={function (e) {
+                    setFormulario({ ...formulario, isbn: e.target.value });
+                  }}
+                  placeholder="ISBN do livro"
+                />
+              </div>
+
+              <div className="form-group">
                 <label className="form-label">Ano de Publicação</label>
                 <input
                   type="number"
@@ -821,6 +979,19 @@ function App() {
                   }}
                   placeholder="Ex: 2023"
                 />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">
+                  <input
+                    type="checkbox"
+                    checked={formulario.destaque}
+                    onChange={function (e) {
+                      setFormulario({ ...formulario, destaque: e.target.checked });
+                    }}
+                  />
+                  {" "}Destacar livro na loja
+                </label>
               </div>
 
               <div className="form-group">
@@ -849,25 +1020,70 @@ function App() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">URL da Imagem</label>
-                <input
-                  type="url"
-                  className="form-input"
-                  value={formulario.imagem_url}
-                  onChange={function (e) {
-                    setFormulario({ ...formulario, imagem_url: e.target.value });
-                  }}
-                  placeholder="https://exemplo.com/capa.jpg"
-                />
+                <label className="form-label">Foto da capa {modo === "criar" ? "*" : ""}</label>
+                <div className="image-actions">
+                  <input
+                    ref={galeriaInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={lerArquivoImagem}
+                    hidden
+                  />
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={lerArquivoImagem}
+                    hidden
+                  />
+                  <button
+                    type="button"
+                    className="btn-cancel"
+                    onClick={adicionarFotoDaGaleria}
+                  >
+                    Adicionar foto da galeria
+                  </button>
+                  <button type="button" className="btn-cancel" onClick={tirarFotoDoLivro}>
+                    Tirar foto
+                  </button>
+                </div>
+                {modo === "editar" && (
+                  <input
+                    type="url"
+                    className="form-input"
+                    value={formulario.imagem_url}
+                    onChange={function (e) {
+                      setFormulario({ ...formulario, imagem_url: e.target.value });
+                    }}
+                    placeholder="URL alternativa da imagem"
+                    style={{ marginTop: "10px" }}
+                  />
+                )}
+                <p className="form-help">
+                  {imagemSelecionada
+                    ? `Selecionada: ${imagemSelecionada.fileName}`
+                    : modo === "editar" && formulario.imagem_url
+                      ? "A foto atual será mantida se nenhuma nova for selecionada."
+                      : "Selecione uma foto; ela será enviada ao Supabase ao salvar o livro."}
+                </p>
+                {(imagemPreview || (modo === "editar" && formulario.imagem_url)) && (
+                  <img
+                    className="image-preview"
+                    src={imagemPreview || formulario.imagem_url}
+                    alt="Prévia da capa do livro"
+                  />
+                )}
               </div>
 
               <div className="form-actions">
-                <button type="submit" className="btn-save">
-                  {modo === "criar" ? "Criar Livro" : "Atualizar Livro"}
+                <button type="submit" className="btn-save" disabled={salvandoLivro}>
+                  {salvandoLivro ? "Salvando livro e foto..." : modo === "criar" ? "Criar Livro" : "Atualizar Livro"}
                 </button>
                 <button
                   type="button"
                   className="btn-cancel"
+                  disabled={salvandoLivro}
                   onClick={function () {
                     resetarFormulario();
                     setModo("listar");
@@ -1029,30 +1245,6 @@ function App() {
             </div>
           </div>
 
-          <div className="camera-section">
-            <button className="camera-button" onClick={abrirCameraOuGaleria} disabled={fotoEnviando}>
-              {fotoEnviando ? "Enviando foto..." : "Tirar Foto / Galeria"}
-            </button>
-
-            {fotoPreview && (
-              <div className="camera-preview">
-                <img src={fotoPreview} alt="Foto capturada e armazenada" />
-              </div>
-            )}
-
-            {fotoEnviando && <div className="camera-status" role="status">Enviando foto para o Supabase Storage...</div>}
-            {fotoUrlPublica && (
-              <a className="camera-link" href={fotoUrlPublica} target="_blank" rel="noreferrer">
-                Abrir foto pública
-              </a>
-            )}
-
-            {fotoErro && <div className="camera-error">{fotoErro}</div>}
-
-            <a href="#acervo" className="hero-button">
-              Explorar acervo
-            </a>
-          </div>
         </section>
 
         <section className="section" id="acervo">

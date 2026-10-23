@@ -2,27 +2,18 @@ import { supabase } from "./supabaseClient";
 
 const PHOTO_BUCKET = "user-photos";
 
-export async function uploadCameraPhoto(photo, userId) {
-  if (!photo?.webPath) {
-    throw new Error("A câmera não retornou uma URI válida para a imagem.");
-  }
-
+export async function uploadBookImage(blob, userId) {
   if (!userId) {
     throw new Error("Entre na sua conta para enviar fotos ao armazenamento.");
   }
 
-  const response = await fetch(photo.webPath);
-  if (!response.ok) {
-    throw new Error("Não foi possível converter a imagem capturada para upload.");
+  if (!blob?.size || !blob.type.startsWith("image/")) {
+    throw new Error("Selecione uma imagem válida antes de salvar o livro.");
   }
 
-  const blob = await response.blob();
-  if (!blob.size) {
-    throw new Error("A imagem capturada está vazia.");
-  }
-
-  const contentType = blob.type || `image/${photo.format || "jpeg"}`;
-  const extension = contentType === "image/jpeg" ? "jpg" : contentType.split("/")[1] || "jpg";
+  const contentType = blob.type.split(";")[0].toLowerCase();
+  const subtype = contentType.split("/")[1] || "img";
+  const extension = subtype.split("+")[0].replace(/[^a-z0-9]/g, "") || "img";
   const filePath = `${userId}/${crypto.randomUUID()}.${extension}`;
 
   const { error } = await supabase.storage
@@ -38,5 +29,15 @@ export async function uploadCameraPhoto(photo, userId) {
     throw new Error("O Supabase não retornou a URL pública da imagem.");
   }
 
-  return data.publicUrl;
+  return { publicUrl: data.publicUrl, filePath };
+}
+
+export async function deleteBookImage(filePath) {
+  const { error } = await supabase.storage
+    .from(PHOTO_BUCKET)
+    .remove([filePath]);
+
+  if (error) {
+    throw new Error(`Não foi possível remover a imagem enviada: ${error.message}`);
+  }
 }
