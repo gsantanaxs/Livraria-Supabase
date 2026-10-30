@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
+import { Geolocation } from "@capacitor/geolocation";
 import { useAuth } from "./auth/AuthContext";
 import AuthScreen from "./auth/AuthScreen";
 import {
@@ -318,6 +319,9 @@ function App() {
   const [mensagemAdmin, setMensagemAdmin] = useState({ tipo: "", texto: "" });
   const [subscription, setSubscription] = useState(null);
   const [syncAtivo, setSyncAtivo] = useState(false);
+  const [localizacao, setLocalizacao] = useState(null);
+  const [localizacaoCarregando, setLocalizacaoCarregando] = useState(false);
+  const [erroLocalizacao, setErroLocalizacao] = useState("");
 
   // ========== EFFECT INICIAL - CARREGAR DADOS ==========
   useEffect(function () {
@@ -407,6 +411,27 @@ function App() {
   }, [imagemSelecionada]);
 
   // ========== FUNÇÕES CRUD ==========
+  async function capturarLocalizacao() {
+    setLocalizacaoCarregando(true);
+    setErroLocalizacao("");
+    try {
+      let permissao = await Geolocation.checkPermissions();
+      if (permissao.location !== "granted") permissao = await Geolocation.requestPermissions();
+      if (permissao.location !== "granted") {
+        throw new Error("Permiss\u00e3o de localiza\u00e7\u00e3o negada. Autorize o acesso\u00a0\u00e0 localiza\u00e7\u00e3o nas configura\u00e7\u00f5es do aparelho.");
+      }
+      const posicao = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+      setLocalizacao({ latitude: posicao.coords.latitude, longitude: posicao.coords.longitude, precisao: posicao.coords.accuracy });
+    } catch (erro) {
+      const mensagem = erro?.message || "N\u00e3o foi poss\u00edvel obter sua localiza\u00e7\u00e3o.";
+      setErroLocalizacao(mensagem.toLowerCase().includes("timeout")
+        ? "A localiza\u00e7\u00e3o demorou demais. Verifique se o GPS est\u00e1 ativo e tente novamente."
+        : mensagem);
+    } finally {
+      setLocalizacaoCarregando(false);
+    }
+  }
+
   function lerArquivoImagem(event) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -1436,7 +1461,27 @@ function App() {
               </p>
             </div>
 
-            <form
+            <div>
+              <div style={{ padding: "20px", border: "1px solid #65462F", borderRadius: "8px", background: "#241710" }}>
+                <h3 style={{ marginTop: 0, fontFamily: "Georgia, serif", fontSize: "24px", fontWeight: 400 }}>Encontre a livraria</h3>
+                <p>Compartilhe sua localiza\u00e7\u00e3o atual para ver as coordenadas e abrir o ponto no Google Maps.</p>
+                <button type="button" className="hero-button" onClick={capturarLocalizacao} disabled={localizacaoCarregando}>
+                  {localizacaoCarregando ? "Obtendo localiza\u00e7\u00e3o..." : "Usar minha localiza\u00e7\u00e3o"}
+                </button>
+                {erroLocalizacao && <p role="alert" className="form-error">{erroLocalizacao}</p>}
+                {localizacao && (
+                  <div aria-live="polite" style={{ marginTop: "18px", color: "#D8C8B8", lineHeight: 1.8 }}>
+                    <div>Latitude: {localizacao.latitude.toFixed(6)}</div>
+                    <div>Longitude: {localizacao.longitude.toFixed(6)}</div>
+                    <div>Precis\u00e3o: \u00b1{Math.round(localizacao.precisao)} m</div>
+                    <a className="hero-button" style={{ marginTop: "12px" }} target="_blank" rel="noreferrer"
+                      href={`https://www.google.com/maps/search/?api=1&query=${localizacao.latitude},${localizacao.longitude}`}>
+                      Abrir no Google Maps
+                    </a>
+                  </div>
+                )}
+              </div>
+              <form
               className="newsletter-form"
               onSubmit={enviarNewsletter}
             >
@@ -1458,7 +1503,8 @@ function App() {
                   {newsletterMessage}
                 </div>
               )}
-            </form>
+              </form>
+            </div>
           </div>
         </section>
       </main>
