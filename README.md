@@ -15,6 +15,9 @@ Aplicação de livraria feita com React, Vite, Capacitor e Supabase. Os livros e
    ```bash
    npm install
    ```
+   ```bash
+   npm install @supabase/supabase-js
+   ```
 
 2. Crie o arquivo de ambiente local a partir do modelo:
 
