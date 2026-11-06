@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { Geolocation } from "@capacitor/geolocation";
+import { LocalNotifications } from "@capacitor/local-notifications";
 import { useAuth } from "./auth/AuthContext";
 import AuthScreen from "./auth/AuthScreen";
 import {
@@ -104,6 +105,14 @@ const CSS = [
   ".cloud-status { margin-bottom: 30px; padding: 15px 18px; border: 1px solid #65462F; border-radius: 8px; background: #241A14; color: #D9A84E; font-family: monospace; font-size: 12px; }",
 
   ".cloud-error { border-color: #8B3A2E; color: #F2A69A; }",
+
+  ".notification-panel { margin-top: 34px; padding: 24px; border: 1px solid #65462F; border-radius: 8px; background: #241A14; }",
+
+  ".notification-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }",
+
+  ".notification-actions button { padding: 12px 16px; border: 0; border-radius: 4px; background: #B8863B; color: #1B120D; font-weight: bold; }",
+
+  ".notification-actions button:disabled { opacity: .55; cursor: wait; }",
 
   ".book-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 25px; }",
 
@@ -322,6 +331,9 @@ function App() {
   const [localizacao, setLocalizacao] = useState(null);
   const [localizacaoCarregando, setLocalizacaoCarregando] = useState(false);
   const [erroLocalizacao, setErroLocalizacao] = useState("");
+  const [statusNotificacao, setStatusNotificacao] = useState("Verifique a permissão para ativar os alertas da livraria.");
+  const [permissaoNotificacao, setPermissaoNotificacao] = useState("unknown");
+  const [notificacaoCarregando, setNotificacaoCarregando] = useState(false);
 
   // ========== EFFECT INICIAL - CARREGAR DADOS ==========
   useEffect(function () {
@@ -792,6 +804,78 @@ function App() {
     );
 
     setEmail("");
+  }
+
+  async function verificarPermissaoNotificacoes() {
+    if (!Capacitor.isNativePlatform()) {
+      setStatusNotificacao("As notificações locais precisam ser testadas no aplicativo instalado em um dispositivo ou emulador.");
+      return false;
+    }
+    try {
+      const resultado = await LocalNotifications.checkPermissions();
+      setPermissaoNotificacao(resultado.display);
+      setStatusNotificacao("Permissão atual: " + resultado.display + ".");
+      return resultado.display === "granted";
+    } catch (error) {
+      setStatusNotificacao("Não foi possível verificar a permissão: " + (error.message || error));
+      return false;
+    }
+  }
+
+  async function solicitarPermissaoNotificacoes() {
+    setNotificacaoCarregando(true);
+    try {
+      const atual = await LocalNotifications.checkPermissions();
+      const resultado = atual.display === "granted" ? atual : await LocalNotifications.requestPermissions();
+      setPermissaoNotificacao(resultado.display);
+      setStatusNotificacao(resultado.display === "granted"
+        ? "Permissão concedida. A livraria já pode enviar alertas neste dispositivo."
+        : "Permissão não concedida. Ative as notificações nas configurações do sistema.");
+    } catch (error) {
+      setStatusNotificacao("Erro ao solicitar permissão: " + (error.message || error));
+    } finally {
+      setNotificacaoCarregando(false);
+    }
+  }
+
+  async function dispararNotificacao(agendada) {
+    setNotificacaoCarregando(true);
+    try {
+      if (!Capacitor.isNativePlatform()) {
+        throw new Error("Abra o app nativo no Android ou iOS para enviar notificações locais.");
+      }
+      const status = await LocalNotifications.checkPermissions();
+      if (status.display !== "granted") {
+        const resposta = await LocalNotifications.requestPermissions();
+        setPermissaoNotificacao(resposta.display);
+        if (resposta.display !== "granted") throw new Error("Permissão de notificações negada.");
+      }
+      const quando = new Date(Date.now() + (agendada ? 10000 : 1000));
+      await LocalNotifications.schedule({ notifications: [{
+        id: agendada ? 102 : 101,
+        title: agendada ? "Lembrete de leitura" : "Alfarrábio · Livraria",
+        body: agendada ? "Seu lembrete de leitura está esperando por você." : "Que tal descobrir uma nova história hoje?",
+        schedule: { at: quando, allowWhileIdle: true },
+        extra: { origem: "acao-do-usuario", tipo: agendada ? "agendada" : "imediata" }
+      }] });
+      setPermissaoNotificacao("granted");
+      setStatusNotificacao(agendada
+        ? "Lembrete agendado para " + quando.toLocaleTimeString("pt-BR") + "."
+        : "Notificação enviada para " + quando.toLocaleTimeString("pt-BR") + ".");
+    } catch (error) {
+      setStatusNotificacao("Não foi possível enviar o alerta: " + (error.message || error));
+    } finally {
+      setNotificacaoCarregando(false);
+    }
+  }
+
+  async function cancelarLembrete() {
+    try {
+      await LocalNotifications.cancel({ notifications: [{ id: 102 }] });
+      setStatusNotificacao("Lembrete agendado cancelado, se ainda estava pendente.");
+    } catch (error) {
+      setStatusNotificacao("Erro ao cancelar lembrete: " + (error.message || error));
+    }
   }
 
   const totalItens = cart.reduce(function (total, item) {
@@ -1437,6 +1521,25 @@ function App() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </section>
+
+        <section className="section" id="alertas">
+          <div className="container">
+            <div className="eyebrow">Biblioteca no seu bolso</div>
+            <h2 style={{ margin: "10px 0", fontFamily: "Georgia, serif", fontSize: "clamp(36px, 5vw, 54px)", fontWeight: 400 }}>Lembretes de leitura.</h2>
+            <p className="section-description">Ative os alertas para receber novidades e lembretes mesmo quando a livraria estiver fechada no seu celular.</p>
+            <div className="notification-panel">
+              <strong>Permissão: {permissaoNotificacao === "unknown" ? "não verificada" : permissaoNotificacao}</strong>
+              <p role="status" aria-live="polite" style={{ color: "#D8C8B8", lineHeight: 1.6 }}>{statusNotificacao}</p>
+              <div className="notification-actions">
+                <button type="button" onClick={verificarPermissaoNotificacoes} disabled={notificacaoCarregando}>Verificar permissão</button>
+                <button type="button" onClick={solicitarPermissaoNotificacoes} disabled={notificacaoCarregando}>Solicitar permissão</button>
+                <button type="button" onClick={() => dispararNotificacao(false)} disabled={notificacaoCarregando}>Enviar alerta agora</button>
+                <button type="button" onClick={() => dispararNotificacao(true)} disabled={notificacaoCarregando}>Lembrete em 10 segundos</button>
+                <button type="button" onClick={cancelarLembrete} disabled={notificacaoCarregando}>Cancelar lembrete</button>
+              </div>
             </div>
           </div>
         </section>
