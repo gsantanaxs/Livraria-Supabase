@@ -77,17 +77,24 @@ npm run build
 
 O workflow do GitHub Actions está em [`android-build.yml`](./.github/workflows/android-build.yml). Ele roda em pushes para `main` ou `master` e também pode ser iniciado manualmente pela aba **Actions** do GitHub. Ao concluir, baixe o artefato `meu-aplicativo-apk` na página da execução.
 
-## Capturas de tela para a entrega
+## Capturas do aplicativo
 
-As imagens acima mostram o ícone e a tela de abertura. Para completar a entrega no Google Classroom, acrescente também uma captura real do app aberto e outra da grade de aplicativos do seu Samsung (ou emulador). Salve as imagens em `docs/screenshots/` e insira-as nesta seção, por exemplo:
+### Tela do aplicativo
 
-```markdown
-![Tela inicial do Alfarrábio em um Samsung](docs/screenshots/tela-inicial-samsung.png)
-![Alfarrábio na grade de aplicativos](docs/screenshots/grade-apps-samsung.png)
-```
+<img src="docs/screenshots/app-preview.png" alt="Prévia da tela inicial do Alfarrábio" width="320">
 
-Use capturas feitas no dispositivo/emulador, sem credenciais ou dados pessoais visíveis.
+### Aplicativo em mockups de celular
 
+<p>
+  <img src="docs/screenshots/pixel-11-pro-mockup.png" alt="Alfarrábio em um mockup de Google Pixel" width="300">
+  <img src="docs/screenshots/iphone-16-hand-mockup.jpeg" alt="Alfarrábio em um mockup de iPhone na mão de uma pessoa" width="420">
+</p>
+
+### Ícone na grade de aplicativos Android
+
+<img src="docs/screenshots/app-grid.png" alt="Ícone do Alfarrábio destacado na grade de aplicativos Android" width="320">
+
+As imagens originais fornecidas para a apresentação estão em `docs/screenshots/`. A captura da grade mostra o ícone instalado no Android.
 ## Entrega no Google Classroom
 
 - Envie o projeto atualizado ou o link do repositório GitHub.
@@ -98,4 +105,5 @@ Use capturas feitas no dispositivo/emulador, sem credenciais ou dados pessoais v
 
 - [Configuração do Supabase Storage](./SUPABASE_STORAGE.md)
 - [Guia de operações CRUD](./CRUD_GUIDE.md)
+
 
