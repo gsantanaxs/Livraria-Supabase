@@ -1,12 +1,37 @@
-# Livraria-Supabase
+﻿# Alfarrábio — Livraria Digital
 
-Aplicação de livraria feita com React, Vite, Capacitor e Supabase. Os livros e as categorias ficam no banco de dados do Supabase; as capas são armazenadas no Supabase Storage e o endereço público é salvo em `produtos.imagem_url`.
+Aplicativo de livraria para consultar e gerenciar um acervo de livros. O projeto combina uma interface web responsiva com recursos nativos Android usando Capacitor.
+
+## Sobre o aplicativo
+
+O Alfarrábio permite navegar pelo catálogo, consultar livros e categorias e, na área de gestão, cadastrar e editar obras. As informações ficam no Supabase. Capas podem ser escolhidas da galeria ou capturadas pela câmera; os arquivos são enviados ao Supabase Storage e a URL é salva em `produtos.imagem_url`.
+
+O aplicativo também integra autenticação do Supabase, geolocalização e notificações locais para recursos disponíveis na interface.
+
+## Tecnologias
+
+- React 18 e Vite
+- Capacitor 8 para Android
+- Supabase Auth, Database e Storage
+- `@capacitor/camera`, `@capacitor/geolocation` e `@capacitor/local-notifications`
+- `@capacitor/assets` para gerar os recursos gráficos Android
+
+## Identidade visual Android
+
+O ícone adaptativo usa fundo marrom e ilustração dourada de um livro aberto. A arte é centralizada para respeitar a área segura dos ícones Android, incluindo as máscaras usadas em aparelhos Samsung. A tela de abertura usa a mesma identidade visual.
+
+| Ícone do aplicativo | Tela de abertura |
+| --- | --- |
+| <img src="assets/icon.png" alt="Ícone do Alfarrábio: livro aberto dourado sobre fundo marrom" width="220"> | <img src="assets/splash.png" alt="Tela de abertura do Alfarrábio com livro aberto dourado centralizado sobre fundo marrom" width="220"> |
+
+Os arquivos base ficam em `assets/`. As versões Android são geradas em `android/app/src/main/res/`.
 
 ## Requisitos
 
-- Node.js e npm instalados.
-- Um projeto Supabase com as tabelas `produtos` e `categorias`.
-- Um bucket público `user-photos` e as políticas de Storage configuradas. Consulte [SUPABASE_STORAGE.md](./SUPABASE_STORAGE.md).
+- Node.js 22 e npm
+- Android Studio e SDK Android para executar no emulador ou em um aparelho
+- Projeto Supabase configurado com as tabelas `produtos` e `categorias`
+- Bucket público `user-photos` e políticas de Storage configuradas — veja [SUPABASE_STORAGE.md](./SUPABASE_STORAGE.md)
 
 ## Configuração local
 
@@ -15,64 +40,61 @@ Aplicação de livraria feita com React, Vite, Capacitor e Supabase. Os livros e
    ```bash
    npm install
    ```
-   ```bash
-   npm install @supabase/supabase-js
-   ```
 
-2. Crie o arquivo de ambiente local a partir do modelo:
-
-   **Windows PowerShell:**
-
-   ```powershell
-   Copy-Item .env.example .env.local
-   ```
-
-   **macOS/Linux:**
-
-   ```bash
-   cp .env.example .env.local
-   ```
-
-3. No painel Supabase, abra as configurações do projeto e copie a URL do projeto e a chave pública (publishable/anon) para `.env.local`:
+2. Na raiz do projeto, crie `.env.local` com as credenciais públicas do seu projeto Supabase:
 
    ```dotenv
    VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
    VITE_SUPABASE_ANON_KEY=SUA_CHAVE_PUBLICA
    ```
 
-   Substitua os valores de exemplo pelos dados reais do seu projeto. Nunca coloque a chave `service_role` em arquivos usados pelo frontend ou em variáveis `VITE_`.
+   Use somente a chave pública `anon`/publishable no frontend. Nunca coloque a chave `service_role` em variáveis `VITE_` ou no repositório. Não publique o arquivo `.env.local`.
 
-4. Inicie o servidor de desenvolvimento:
+3. Inicie a aplicação web:
 
    ```bash
    npm run dev
    ```
 
-   Abra no navegador o endereço mostrado no terminal (normalmente `http://localhost:5173`).
+   Abra o endereço indicado pelo Vite, normalmente `http://localhost:5173`.
 
-O Vite lê as variáveis `VITE_` na inicialização. Reinicie o servidor depois de editar `.env.local`.
+## Executar no Android
 
-## Criar um livro com foto
+Gere ou atualize os recursos de ícone e splash e sincronize o projeto nativo:
 
-1. Faça login no aplicativo.
-2. Abra o botão de gerenciamento (⚙️) e selecione **Adicionar Novo Livro**.
-3. Preencha os dados, escolha uma categoria e selecione **Adicionar foto da galeria** ou **Tirar foto**.
-4. Clique em **Criar Livro**. A foto será enviada ao bucket `user-photos` e sua URL será salva na coluna `imagem_url` do produto.
+```bash
+npx capacitor-assets generate --android
+npx cap sync android
+```
 
-Para configurar o bucket e as políticas necessárias, siga [SUPABASE_STORAGE.md](./SUPABASE_STORAGE.md).
-
-## Proteção de variáveis de ambiente
-
-- `.env.example` é um modelo: mantenha nele apenas nomes de variáveis e valores fictícios.
-- Coloque credenciais reais somente em `.env.local`. Esse arquivo é ignorado pelo Git pelo `.gitignore`.
-- Não copie chaves, tokens, senhas ou URLs com credenciais para o código, README, commits ou issues.
-- A chave pública publishable/anon pode ser usada no frontend com as políticas de acesso (RLS) corretas. A chave `service_role` é secreta e nunca deve ser exposta ao navegador.
-- Antes de enviar alterações, confira `git status` e verifique que `.env.local` não está entre os arquivos staged ou no commit.
-
-## Build de produção
+Abra `android/` no Android Studio para executar no emulador ou conectar um aparelho Samsung com a depuração USB habilitada. Para compilar o frontend web:
 
 ```bash
 npm run build
 ```
 
-Os arquivos gerados ficam em `dist/`.
+## Build automático do APK
+
+O workflow do GitHub Actions está em [`android-apk.yml`](./.github/workflows/android-apk.yml). Ele roda em pushes para `main` ou `master` e também pode ser iniciado manualmente pela aba **Actions** do GitHub. Ao concluir, baixe o artefato `meu-aplicativo-apk` na página da execução.
+
+## Capturas de tela para a entrega
+
+As imagens acima mostram o ícone e a tela de abertura. Para completar a entrega no Google Classroom, acrescente também uma captura real do app aberto e outra da grade de aplicativos do seu Samsung (ou emulador). Salve as imagens em `docs/screenshots/` e insira-as nesta seção, por exemplo:
+
+```markdown
+![Tela inicial do Alfarrábio em um Samsung](docs/screenshots/tela-inicial-samsung.png)
+![Alfarrábio na grade de aplicativos](docs/screenshots/grade-apps-samsung.png)
+```
+
+Use capturas feitas no dispositivo/emulador, sem credenciais ou dados pessoais visíveis.
+
+## Entrega no Google Classroom
+
+- Envie o projeto atualizado ou o link do repositório GitHub.
+- Confirme que o workflow terminou com sucesso e inclua o APK gerado, se solicitado.
+- Inclua as capturas reais do Samsung/emulador no README e no material de entrega.
+
+## Documentação relacionada
+
+- [Configuração do Supabase Storage](./SUPABASE_STORAGE.md)
+- [Guia de operações CRUD](./CRUD_GUIDE.md)
