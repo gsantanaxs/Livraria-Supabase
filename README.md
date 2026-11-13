@@ -95,11 +95,6 @@ O workflow do GitHub Actions está em [`android-build.yml`](./.github/workflows/
 <img src="docs/screenshots/app-grid.png" alt="Ícone do Alfarrábio destacado na grade de aplicativos Android" width="320">
 
 As imagens originais fornecidas para a apresentação estão em `docs/screenshots/`. A captura da grade mostra o ícone instalado no Android.
-## Entrega no Google Classroom
-
-- Envie o projeto atualizado ou o link do repositório GitHub.
-- Confirme que o workflow terminou com sucesso e inclua o APK gerado, se solicitado.
-- Inclua as capturas reais do Samsung/emulador no README e no material de entrega.
 
 ## Documentação relacionada
 
