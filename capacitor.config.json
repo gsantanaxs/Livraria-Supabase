@@ -1,5 +1,12 @@
-{
-  "appId": "com.livraria.alfarrabio",
-  "appName": "Alfarrábio",
-  "webDir": "dist"
+﻿{
+    "appId":  "com.livraria.alfarrabio",
+    "appName":  "Alfarrábio",
+    "webDir":  "dist",
+    "plugins":  {
+                    "SplashScreen":  {
+                                         "backgroundColor":  "#F4EEE3",
+                                         "launchShowDuration":  2000,
+                                         "androidScaleType":  "CENTER_INSIDE"
+                                     }
+                }
 }
