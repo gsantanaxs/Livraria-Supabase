@@ -75,7 +75,7 @@ npm run build
 
 ## Build automático do APK
 
-O workflow do GitHub Actions está em [`android-apk.yml`](./.github/workflows/android-apk.yml). Ele roda em pushes para `main` ou `master` e também pode ser iniciado manualmente pela aba **Actions** do GitHub. Ao concluir, baixe o artefato `meu-aplicativo-apk` na página da execução.
+O workflow do GitHub Actions está em [`android-build.yml`](./.github/workflows/android-build.yml). Ele roda em pushes para `main` ou `master` e também pode ser iniciado manualmente pela aba **Actions** do GitHub. Ao concluir, baixe o artefato `meu-aplicativo-apk` na página da execução.
 
 ## Capturas de tela para a entrega
 
@@ -98,3 +98,4 @@ Use capturas feitas no dispositivo/emulador, sem credenciais ou dados pessoais v
 
 - [Configuração do Supabase Storage](./SUPABASE_STORAGE.md)
 - [Guia de operações CRUD](./CRUD_GUIDE.md)
+
